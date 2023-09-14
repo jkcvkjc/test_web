@@ -1,10 +1,59 @@
+from flask import Flask, render_template, request
 import pandas as pd
 import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
-# Đọc dữ liệu từ tệp Excel
-data = pd.read_excel('D:/Đại Học/HK231/Kỹ thuật điều độ/ASS1/cv.xlsx')
-# Hiển thị dữ liệu đầu tiên để kiểm tra
-print(data.head())
+import io
+import base64
+from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
+
+app = Flask(__name__)
+
+def create_gantt_chart(data):
+    fig, ax = plt.subplots(figsize=(12, 4))
+    for index, row in data.iterrows():
+        plt.barh(y=row['Job'], width=row['Pj'], left=row['Thời gian bắt đầu'])
+    plt.title('Biểu đồ Gantt', fontsize=15, fontweight='bold')
+    plt.xlabel("Thời gian (ngày)", fontweight='bold')
+    plt.ylabel("Job", fontweight='bold')
+
+    img_stream = io.BytesIO()
+    plt.savefig(img_stream, format='png')
+    img_stream.seek(0)
+
+    img_data = base64.b64encode(img_stream.read()).decode('utf-8')
+    result_df = data[['Job', 'Pj', 'Thời gian bắt đầu', 'Thời gian kết thúc']]
+    return img_data, result_df
+
+@app.route('/', methods=['GET', 'POST'])
+def index():
+    if request.method == 'POST':
+        selected_rule = request.form['rule']
+
+        if 'excel_file' in request.files:
+            excel_file = request.files['excel_file']
+            if excel_file.filename != '':
+                data = pd.read_excel(excel_file)
+            else:
+                return render_template('index.html', error_message='Vui lòng chọn một tệp Excel.')
+
+        if selected_rule == '1':
+            result = luat_EDD(data)
+        elif selected_rule == '2':
+            result = luat_MS(data)
+        elif selected_rule == '3':
+            result = luat_SPT(data)
+        elif selected_rule == '4':
+            result = luat_WSPT(data)
+        elif selected_rule == '5':
+            result = luat_WI(data)
+        elif selected_rule == '6':
+            result = luat_LPT(data)
+        else:
+            print("Lựa chọn không hợp lệ.")
+            return
+        gantt_chart, result_df = create_gantt_chart(result)
+
+        return render_template('index.html', result_df=result_df.to_html(classes='table table-bordered table-striped', index=False), gantt_chart=gantt_chart)
+    return render_template('index.html')
 # 1 EDD Min Lmax
 def luat_EDD(data):
 # Sắp xếp danh sách công việc theo thứ tự Dj từ nhỏ đến lớn, thời gian tới hạn sớm nhất
@@ -117,41 +166,6 @@ def luat_LPT(data):
     print('Hàm mục tiêu Min Cmax là',Min_Cmax)
     print('Kết quả điều độ theo luật LPT')
     return LPT
-def ve_bieu_do_gantt(data):
-    fig, ax = plt.subplots(figsize=(12, 4))
-    for index, row in data.iterrows():
-        plt.barh(y=row['Job'], width=row['Pj'], left=row['Thời gian bắt đầu'])
-    plt.title('Biểu đồ Gantt', fontsize=15, fontweight='bold')
-    plt.xlabel("Thời gian (ngày)", fontweight='bold')
-    plt.ylabel("Job", fontweight='bold')
-    plt.show()
-def chon_luat_phan_viec():
-    print("Chọn Luật Phân Việc:")
-    print("1. EDD ")
-    print("2. MS ")
-    print("3. SPT ")
-    print("4. WSPT ")
-    print("5. WI ")
-    print("6. LPT ")
-    choice = input("Nhập số tương ứng: ")
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000, debug=True)
 
-    if choice == '1':
-        result = luat_EDD(data)
-    elif choice == '2':
-        result = luat_MS(data)
-    elif choice == '3':
-        result = luat_SPT(data)
-    elif choice == '4':
-        result = luat_WSPT(data)
-    elif choice == '5':
-        result = luat_WI(data)
-    elif choice == '6':
-        result = luat_LPT(data)
-    else:
-        print("Lựa chọn không hợp lệ.")
-        return
-
-    print("Kết quả:")
-    print(result)
-    ve_bieu_do_gantt(result)
-chon_luat_phan_viec()
